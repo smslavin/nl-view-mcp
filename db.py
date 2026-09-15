@@ -35,3 +35,14 @@ def init_db(path: str | Path) -> sqlite3.Connection:
     conn.executescript(SCHEMA)
     conn.commit()
     return conn
+
+
+def discover_schema(conn: sqlite3.Connection) -> list[dict]:
+    """The tag catalog: node_id/name/kind/unit/zone for every known tag.
+
+    This is the schema-discovery step build_view runs internally before
+    deciding what to query -- not exposed as its own MCP tool.
+    """
+    cursor = conn.execute("SELECT node_id, name, kind, unit, zone FROM tags")
+    columns = [d[0] for d in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
