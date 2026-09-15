@@ -487,6 +487,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "mcp", extra = ["cli"] },
     { name = "python-dotenv" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -499,6 +500,7 @@ requires-dist = [
     { name = "anthropic" },
     { name = "mcp", extras = ["cli"], specifier = ">=2.0" },
     { name = "python-dotenv" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata.requires-dev]

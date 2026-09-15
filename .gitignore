@@ -14,9 +14,10 @@ build/
 /data/*.db
 /data/*.sqlite
 
-# frontend (added in a later step)
+# frontend
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 
 # Beads / Dolt files (added by bd init)
 .dolt/
