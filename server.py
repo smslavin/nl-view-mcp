@@ -25,7 +25,7 @@ from typing import Callable
 from dotenv import load_dotenv
 from mcp.server import MCPServer
 
-from db import discover_schema, init_db
+from db import discover_mes, discover_schema, init_db
 from intent import understand_instruction
 from llm_fallback import classify_with_llm
 from widgets import build_widget_spec
@@ -52,7 +52,7 @@ def run_build_view(
 ) -> dict:
     """The actual build_view logic, independent of the MCP tool wrapper so
     it's directly unit-testable against a plain sqlite3.Connection."""
-    tags = discover_schema(conn)
+    tags = discover_schema(conn) + discover_mes(conn)
     intent = understand_instruction(instruction, tags)
     if intent.chart_type is None:
         intent = llm_classify(instruction, tags)

@@ -154,8 +154,114 @@ def seed(
     return len(readings)
 
 
+LINES = [
+    {"id": "line-1", "name": "Line 1", "ideal_rate_per_hour": 120.0},
+    {"id": "line-2", "name": "Line 2", "ideal_rate_per_hour": 90.0},
+    {"id": "line-3", "name": "Line 3", "ideal_rate_per_hour": 150.0},
+]
+
+
+def generate_lines() -> list[dict]:
+    return [dict(line) for line in LINES]
+
+
+def generate_current_shift(line: dict, now_ts: int, rng: random.Random) -> dict:
+    """One ongoing (ended_at=None) shift per line, 1-6 hours in."""
+    duration_s = rng.randint(3600, 6 * 3600)
+    return {
+        "id": f"{line['id']}-current",
+        "line_id": line["id"],
+        "started_at": now_ts - duration_s,
+        "ended_at": None,
+    }
+
+
+def generate_production_events(
+    line: dict, shift: dict, now_ts: int, rng: random.Random
+) -> list[tuple[str, int, str]]:
+    """(shift_id, ts, event_type) rows for one ongoing shift: 0-2 downtime
+    windows plus good/reject unit events spread across the shift so far.
+
+    Unit events are spaced evenly across the whole shift window rather than
+    only the non-downtime portions -- a known simplification, like
+    widgets.SAMPLE_INTERVAL_S. It doesn't affect the OEE math (which counts
+    events and downtime independently), only the visual evenness of the
+    underlying event stream, which nothing here reads directly.
+    """
+    efficiency = rng.uniform(0.55, 0.95)  # actual rate as a fraction of ideal
+    defect_rate = rng.uniform(0.02, 0.08)
+    started_at = shift["started_at"]
+    duration_s = now_ts - started_at
+
+    events: list[tuple[str, int, str]] = []
+    n_downtimes = rng.randint(0, 2)
+    for _ in range(n_downtimes):
+        if now_ts - started_at < 600:
+            break
+        dt_start = rng.randint(started_at, now_ts - 300)
+        dt_end = min(dt_start + rng.randint(180, 1200), now_ts)
+        events.append((shift["id"], dt_start, "downtime_start"))
+        events.append((shift["id"], dt_end, "downtime_end"))
+
+    downtime_s = sum(
+        end - start for (_, start, _), (_, end, _) in zip(events[0::2], events[1::2])
+    )
+    run_s = max(duration_s - downtime_s, 0)
+    actual_units_per_s = (line["ideal_rate_per_hour"] * efficiency) / 3600
+    total_units = int(run_s * actual_units_per_s)
+
+    for i in range(total_units):
+        ts = started_at + int(i * duration_s / max(total_units, 1))
+        event_type = "reject_unit" if rng.random() < defect_rate else "good_unit"
+        events.append((shift["id"], ts, event_type))
+
+    return events
+
+
+def seed_mes(
+    db_path: str | Path,
+    end_ts: int | None = None,
+    seed_value: int | None = None,
+) -> int:
+    """Create the DB, write the line catalog, and give each line one
+    ongoing shift with synthetic production events. Returns rows written."""
+    import time
+
+    rng = random.Random(seed_value)
+    end_ts = end_ts if end_ts is not None else int(time.time())
+    lines = generate_lines()
+
+    conn = init_db(db_path)
+    try:
+        conn.executemany(
+            "INSERT OR REPLACE INTO lines (id, name, ideal_rate_per_hour) "
+            "VALUES (:id, :name, :ideal_rate_per_hour)",
+            lines,
+        )
+        events_written = 0
+        for line in lines:
+            shift = generate_current_shift(line, end_ts, rng)
+            conn.execute(
+                "INSERT OR REPLACE INTO shifts (id, line_id, started_at, ended_at) "
+                "VALUES (:id, :line_id, :started_at, :ended_at)",
+                shift,
+            )
+            events = generate_production_events(line, shift, end_ts, rng)
+            conn.executemany(
+                "INSERT INTO production_events (shift_id, ts, event_type) VALUES (?, ?, ?)",
+                events,
+            )
+            events_written += len(events)
+        conn.commit()
+    finally:
+        conn.close()
+    return events_written
+
+
 if __name__ == "__main__":
     load_dotenv()
     path = os.environ.get("SQLITE_PATH", "./data/telemetry.db")
     n = seed(path)
     print(f"Seeded {n} readings across {len(generate_tags())} tags into {path}")
+    n_events = seed_mes(path)
+    print(f"Seeded {n_events} production events across {len(LINES)} lines into {path}")

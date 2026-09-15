@@ -21,7 +21,7 @@ _SYSTEM_PROMPT = """You classify a plant-operator instruction against a fixed sc
 Given the instruction and the available tags, respond with ONLY a JSON object, no \
 prose and no markdown fences:
 
-{"kind": one of "tank_level" | "pump_run_state" | "flow_rate",
+{"kind": one of "tank_level" | "pump_run_state" | "flow_rate" | "oee",
  "chart_type": one of "line" | "bar" | "stat",
  "zones": a JSON list of zone names to scope to, or null for all zones,
  "window_s": integer seconds of history to show if chart_type is "line", else null}"""

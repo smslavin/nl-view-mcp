@@ -1,5 +1,5 @@
-from db import init_db
-from generator import generate_tags, seed
+from db import discover_mes, init_db
+from generator import LINES, generate_tags, seed, seed_mes
 
 
 def test_init_db_creates_expected_tables(tmp_path):
@@ -10,7 +10,7 @@ def test_init_db_creates_expected_tables(tmp_path):
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    assert {"tags", "readings"} <= tables
+    assert {"tags", "readings", "lines", "shifts", "production_events"} <= tables
     conn.close()
 
 
@@ -44,3 +44,34 @@ def test_seed_readings_are_scoped_to_the_requested_window(tmp_path):
 
     assert min_ts >= 0
     assert max_ts < 3600
+
+
+def test_seed_mes_writes_lines_shifts_and_events(tmp_path):
+    path = tmp_path / "telemetry.db"
+    events_written = seed_mes(path, end_ts=100_000, seed_value=1)
+
+    conn = init_db(path)
+    line_count = conn.execute("SELECT COUNT(*) FROM lines").fetchone()[0]
+    shift_count = conn.execute("SELECT COUNT(*) FROM shifts").fetchone()[0]
+    event_count = conn.execute("SELECT COUNT(*) FROM production_events").fetchone()[0]
+    conn.close()
+
+    assert line_count == len(LINES)
+    assert shift_count == len(LINES)  # one open shift per line
+    assert event_count == events_written
+    assert event_count > 0
+
+
+def test_discover_mes_returns_one_oee_pseudo_tag_per_line(tmp_path):
+    path = tmp_path / "telemetry.db"
+    seed_mes(path, end_ts=100_000, seed_value=1)
+
+    conn = init_db(path)
+    oee_tags = discover_mes(conn)
+    conn.close()
+
+    assert len(oee_tags) == len(LINES)
+    for tag in oee_tags:
+        assert tag["kind"] == "oee"
+        assert tag["unit"] == "%"
+        assert tag["zone"] in {line["id"] for line in LINES}

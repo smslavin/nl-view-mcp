@@ -50,6 +50,31 @@ def test_build_stat_spec_averages_latest_reading_across_matched_tags(seeded_conn
     assert spec["series"][0]["unit"] == "gpm"
 
 
+def test_build_bar_spec_computes_oee_by_line(seeded_conn, tags, freeze_now):
+    intent = Intent(kind="oee", chart_type="bar")
+    spec = build_bar_spec(intent, tags, seeded_conn)
+
+    assert spec["title"] == "OEE by Line"
+    points = spec["series"][0]["points"]
+    lines = {p["x"] for p in points}
+    assert lines == {"line-1", "line-2", "line-3"}
+    for point in points:
+        assert 0.0 <= point["y"] <= 100.0
+    assert spec["series"][0]["unit"] == "%"
+
+
+def test_build_bar_spec_oee_is_zero_for_a_line_with_no_open_shift(
+    seeded_conn, tags, freeze_now
+):
+    seeded_conn.execute("UPDATE shifts SET ended_at = 999999 WHERE line_id = 'line-1'")
+    intent = Intent(kind="oee", chart_type="bar")
+
+    spec = build_bar_spec(intent, tags, seeded_conn)
+
+    points = {p["x"]: p["y"] for p in spec["series"][0]["points"]}
+    assert points["line-1"] == 0.0
+
+
 def test_build_widget_spec_dispatches_on_chart_type(seeded_conn, tags, freeze_now):
     line_intent = Intent(kind="tank_level", chart_type="line", window_s=3600)
     bar_intent = Intent(kind="pump_run_state", chart_type="bar")

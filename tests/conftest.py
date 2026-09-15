@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from db import discover_schema, init_db
-from generator import seed
+from db import discover_mes, discover_schema, init_db
+from generator import seed, seed_mes
 
 SEED_END_TS = 10_000_000  # arbitrary fixed "now" so window queries are deterministic
 
@@ -12,6 +12,7 @@ SEED_END_TS = 10_000_000  # arbitrary fixed "now" so window queries are determin
 def seeded_conn(tmp_path):
     path = tmp_path / "telemetry.db"
     seed(path, hours=2, interval_s=60, end_ts=SEED_END_TS, seed_value=42)
+    seed_mes(path, end_ts=SEED_END_TS, seed_value=42)
     conn = init_db(path)
     yield conn
     conn.close()
@@ -19,7 +20,7 @@ def seeded_conn(tmp_path):
 
 @pytest.fixture
 def tags(seeded_conn):
-    return discover_schema(seeded_conn)
+    return discover_schema(seeded_conn) + discover_mes(seeded_conn)
 
 
 @pytest.fixture

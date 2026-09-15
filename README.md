@@ -37,14 +37,14 @@ Scaffolding. See `bd ready` for the current build backlog.
 2. [x] `build_view` tool: heuristics + query execution + `ui://` resource emission
 3. [x] LLM fallback for heuristic-ambiguous instructions
 4. [x] Vue + Chart.js renderer, wired to the live server
-5. [ ] Stretch: synthetic MES tables + an OEE-by-line instruction
+5. [x] Stretch: synthetic MES tables + an OEE-by-line instruction
 6. [ ] Findings write-up (this README)
 
 ## Running it
 
 ```bash
 uv sync
-uv run python generator.py   # seeds ./data/telemetry.db with 6h of synthetic readings
+uv run python generator.py   # seeds ./data/telemetry.db: 6h of synthetic telemetry + MES lines/shifts
 uv run pytest -q
 
 uv run python server.py      # serves build_view over Streamable HTTP on :8010 (CORS open to :5173)
@@ -65,16 +65,23 @@ npx vitest run
 - "show me tank level trends for the last hour" -> line
 - "compare pump run hours by zone" -> bar
 - "what's the current flow rate" -> stat
+- "show OEE by line for the current shift" -> bar (synthetic MES tables --
+  lines/shifts/production_events -- discovered as `oee`-kind pseudo-tags
+  alongside the telemetry tag catalog; no other build_view changes)
 
 An instruction with no kind keyword (e.g. "how's the west side looking") falls
 through to the Claude Haiku classifier -- set `ANTHROPIC_API_KEY` for that path.
 
 ## Findings
 
-Full write-up comes after the MES stretch goal. Noted so far:
+Noted so far, final write-up next:
 
 - **The widget spec has no semantic type for a point's `x` value.** Line
   charts always use Unix-seconds timestamps and bar charts always use
   categorical strings, but nothing in the schema says so -- the renderer
-  guesses based on `chart_type` (see `chartData.ts`). A real version of this
+  guesses based on `chart_type` (see `chartData.ts`). The OEE-by-line bar
+  chart hit the same gap from another angle: `x` is the raw line id
+  (`line-1`), not the display name (`Line 1`), because the id is also the
+  join key `widgets.py` needs for the SQL lookup -- the spec has nowhere to
+  carry both an identifier and a display label. A real version of this
   schema needs an explicit axis type, not an inferred one.

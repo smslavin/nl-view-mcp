@@ -30,6 +30,20 @@ def test_run_build_view_falls_back_to_llm_when_heuristic_is_unresolved(seeded_co
     assert spec["chart_type"] == "stat"
 
 
+def test_run_build_view_resolves_oee_by_line_without_calling_llm(
+    seeded_conn, freeze_now
+):
+    def _llm_should_not_be_called(instruction, tags):
+        raise AssertionError("heuristic should have resolved this instruction")
+
+    spec = server.run_build_view(
+        "show OEE by line for the current shift", seeded_conn, _llm_should_not_be_called
+    )
+
+    assert spec["chart_type"] == "bar"
+    assert spec["title"] == "OEE by Line"
+
+
 def test_build_view_then_get_view_round_trips_through_the_ui_resource(
     monkeypatch, tmp_path
 ):
