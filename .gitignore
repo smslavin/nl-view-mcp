@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+**/.venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# generated synthetic data
+/data/*.db
+/data/*.sqlite
+
+# frontend (added in a later step)
+frontend/node_modules/
+frontend/dist/
