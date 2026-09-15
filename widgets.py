@@ -201,7 +201,95 @@ def build_stat_spec(intent: Intent, tags: list[dict], conn: sqlite3.Connection) 
     }
 
 
-_BUILDERS = {"line": build_line_spec, "bar": build_bar_spec, "stat": build_stat_spec}
+def _fmt_ts(ts: int) -> str:
+    return time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts))
+
+
+def build_table_spec(intent: Intent, tags: list[dict], conn: sqlite3.Connection) -> dict:
+    """Rows-and-columns, for data that's naturally tabular rather than a
+    plottable series -- shift records here, but the shape (columns declare a
+    `kind` per field, rows are plain dicts keyed by column) is generic. A
+    `kind: "code"` column is the renderer's cue to use monospace + truncate +
+    full-value-on-hover, same as a lot code gets in mes-mcp's recall UI.
+    """
+    rows = conn.execute(
+        "SELECT s.id, l.name, s.started_at, s.ended_at "
+        "FROM shifts s JOIN lines l ON l.id = s.line_id ORDER BY l.name"
+    ).fetchall()
+
+    columns = [
+        {"key": "line", "label": "Line", "kind": "text"},
+        {"key": "started", "label": "Started", "kind": "text"},
+        {"key": "ended", "label": "Ended", "kind": "text"},
+        {"key": "id", "label": "Shift ID", "kind": "code"},
+    ]
+    out_rows = [
+        {
+            "line": line_name,
+            "started": _fmt_ts(started_at),
+            "ended": _fmt_ts(ended_at) if ended_at is not None else "in progress",
+            "id": shift_id,
+        }
+        for shift_id, line_name, started_at, ended_at in rows
+    ]
+
+    return {
+        "widget_type": "table",
+        "title": "Shift History",
+        "chart_type": "table",
+        "columns": columns,
+        "rows": out_rows,
+        "size_hint": {"w": 8, "h": 4},
+    }
+
+
+def build_flow_spec(intent: Intent, tags: list[dict], conn: sqlite3.Connection) -> dict:
+    """Node/edge topology for a zone's physical routing -- the one shape line/
+    bar/stat can't represent. Scoped to the requested zones, or every zone
+    with routing data when none is named. Node labels come from the tag
+    catalog already in `tags`; `routes` (zone, from_tag, to_tag) is queried
+    directly since it isn't part of tag discovery.
+    """
+    zones = intent.zones or sorted({
+        t["zone"] for t in tags
+        if t["kind"] in ("tank_level", "pump_run_state", "flow_rate", "flow_rate_aux")
+    })
+    by_id = {t["node_id"]: t for t in tags}
+
+    placeholders = ",".join("?" * len(zones))
+    route_rows = (
+        conn.execute(
+            f"SELECT zone, from_tag, to_tag FROM routes WHERE zone IN ({placeholders})", zones,
+        ).fetchall()
+        if zones else []
+    )
+
+    node_ids: dict[str, dict] = {}
+    edges = []
+    for _zone, from_tag, to_tag in route_rows:
+        for node_id in (from_tag, to_tag):
+            if node_id not in node_ids:
+                tag = by_id.get(node_id)
+                node_ids[node_id] = {"id": node_id, "label": tag["name"] if tag else node_id}
+        edges.append({"from": from_tag, "to": to_tag})
+
+    title = (
+        f"Flow Topology — {', '.join(z.title() for z in zones)}" if intent.zones else "Flow Topology"
+    )
+    return {
+        "widget_type": "flow",
+        "title": title,
+        "chart_type": "flow",
+        "nodes": list(node_ids.values()),
+        "edges": edges,
+        "size_hint": {"w": 6, "h": 4},
+    }
+
+
+_BUILDERS = {
+    "line": build_line_spec, "bar": build_bar_spec, "stat": build_stat_spec,
+    "table": build_table_spec, "flow": build_flow_spec,
+}
 
 
 def build_widget_spec(

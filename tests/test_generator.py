@@ -1,11 +1,14 @@
 import random
 
 from generator import (
+    DIVERGENT_ZONE,
     LINES,
     ZONES,
     generate_current_shift,
+    generate_divergent_tag,
     generate_production_events,
     generate_readings,
+    generate_routes,
     generate_tags,
 )
 
@@ -129,3 +132,32 @@ def test_generate_production_events_is_deterministic_for_a_given_seed():
     events_a = generate_production_events(LINES[0], shift, now_ts, random.Random(5))
     events_b = generate_production_events(LINES[0], shift, now_ts, random.Random(5))
     assert events_a == events_b
+
+
+def test_generate_routes_forms_a_straight_chain_for_uniform_zones():
+    routes = generate_routes()
+    non_divergent = [r for r in routes if r["zone"] != DIVERGENT_ZONE]
+    for zone in ZONES:
+        if zone == DIVERGENT_ZONE:
+            continue
+        zone_routes = [r for r in non_divergent if r["zone"] == zone]
+        assert {(r["from_tag"], r["to_tag"]) for r in zone_routes} == {
+            (f"{zone}.tank_level", f"{zone}.pump_run_state"),
+            (f"{zone}.pump_run_state", f"{zone}.flow_rate"),
+        }
+
+
+def test_generate_routes_divergent_zone_pump_feeds_two_flow_meters():
+    routes = generate_routes()
+    from_pump = {
+        r["to_tag"] for r in routes
+        if r["zone"] == DIVERGENT_ZONE and r["from_tag"] == f"{DIVERGENT_ZONE}.pump_run_state"
+    }
+    assert from_pump == {f"{DIVERGENT_ZONE}.flow_rate", f"{DIVERGENT_ZONE}.flow_rate_b"}
+
+
+def test_generate_divergent_tag_matches_its_route_target():
+    tag = generate_divergent_tag()
+    routes = generate_routes()
+    assert any(r["to_tag"] == tag["node_id"] for r in routes)
+    assert tag["kind"] == "flow_rate_aux"  # never matched by line/bar/stat intent resolution

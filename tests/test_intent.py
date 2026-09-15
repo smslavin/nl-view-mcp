@@ -57,6 +57,44 @@ def test_parses_explicit_minute_window():
     assert intent.window_s == 1800
 
 
+def test_list_shifts_resolves_to_table_with_no_llm_needed():
+    intent = understand_instruction("list shifts", TAGS)
+
+    assert intent.kind == "shift_history"
+    assert intent.chart_type == "table"
+
+
+def test_shift_history_resolves_to_table_without_the_word_list():
+    intent = understand_instruction("show shift history", TAGS)
+
+    assert intent.kind == "shift_history"
+    assert intent.chart_type == "table"
+
+
+def test_list_word_with_another_kind_also_resolves_to_table():
+    intent = understand_instruction("list tank level readings", TAGS)
+
+    assert intent.kind == "tank_level"
+    assert intent.chart_type == "table"
+
+
+def test_flow_diagram_resolves_to_flow_regardless_of_kind():
+    # "flow diagram" incidentally contains the "flow" kind synonym too, but
+    # the flow check runs first and wins regardless of what kind matched --
+    # a flow query never needs one.
+    intent = understand_instruction("show the flow diagram for west", TAGS)
+
+    assert intent.chart_type == "flow"
+    assert intent.zones == ["west"]
+
+
+def test_flow_topology_with_no_zone_named_resolves_to_flow_with_no_zones():
+    intent = understand_instruction("show flow topology", TAGS)
+
+    assert intent.chart_type == "flow"
+    assert intent.zones is None
+
+
 def test_oee_by_line_resolves_to_bar():
     oee_tags = TAGS + [
         {

@@ -13,7 +13,11 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS tags (
     node_id TEXT PRIMARY KEY,
     name    TEXT NOT NULL,
-    kind    TEXT NOT NULL CHECK (kind IN ('tank_level', 'pump_run_state', 'flow_rate')),
+    -- 'flow_rate_aux' is the one auxiliary tag seed_routes() adds for the
+    -- divergent-zone demo (see generator.py) -- kept out of the three
+    -- telemetry kinds' matching in intent.py deliberately, so it only ever
+    -- shows up via the flow widget, never as a stray series on a bar/line/stat.
+    kind    TEXT NOT NULL CHECK (kind IN ('tank_level', 'pump_run_state', 'flow_rate', 'flow_rate_aux')),
     unit    TEXT NOT NULL,
     zone    TEXT NOT NULL
 );
@@ -44,6 +48,17 @@ CREATE TABLE IF NOT EXISTS production_events (
     event_type TEXT NOT NULL CHECK (
         event_type IN ('good_unit', 'reject_unit', 'downtime_start', 'downtime_end')
     )
+);
+
+-- Physical piping between tags within a zone (tank feeds the pump, the pump
+-- feeds the flow meter), for the "flow" widget. Every zone but one routes as
+-- a straight chain; the divergent zone's pump feeds two flow meters, so the
+-- flow widget has a real branch to render, not just a uniform path -- see
+-- generator.py's generate_routes.
+CREATE TABLE IF NOT EXISTS routes (
+    zone     TEXT NOT NULL,
+    from_tag TEXT NOT NULL REFERENCES tags(node_id),
+    to_tag   TEXT NOT NULL REFERENCES tags(node_id)
 );
 """
 

@@ -1,9 +1,17 @@
 import { shallowMount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import { barSpecFixture, lineSpecFixture, statSpecFixture } from "../testFixtures";
+import {
+  barSpecFixture,
+  flowSpecFixture,
+  lineSpecFixture,
+  statSpecFixture,
+  tableSpecFixture,
+} from "../testFixtures";
 import BarWidget from "./BarWidget.vue";
+import FlowWidget from "./FlowWidget.vue";
 import LineWidget from "./LineWidget.vue";
 import StatWidget from "./StatWidget.vue";
+import TableWidget from "./TableWidget.vue";
 import WidgetCard from "./WidgetCard.vue";
 
 // shallowMount: LineWidget/BarWidget render real Chart.js canvases, which
@@ -25,6 +33,8 @@ describe("WidgetCard", () => {
     ["line", lineSpecFixture, LineWidget],
     ["bar", barSpecFixture, BarWidget],
     ["stat", statSpecFixture, StatWidget],
+    ["table", tableSpecFixture, TableWidget],
+    ["flow", flowSpecFixture, FlowWidget],
   ] as const)("dispatches chart_type %s to the matching component", (_label, spec, expected) => {
     const wrapper = mountCard(spec);
     expect(wrapper.findComponent(expected).exists()).toBe(true);

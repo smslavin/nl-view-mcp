@@ -1,5 +1,5 @@
 from db import discover_mes, init_db
-from generator import LINES, generate_tags, seed, seed_mes
+from generator import LINES, generate_routes, generate_tags, seed, seed_mes, seed_routes
 
 
 def test_init_db_creates_expected_tables(tmp_path):
@@ -10,7 +10,7 @@ def test_init_db_creates_expected_tables(tmp_path):
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    assert {"tags", "readings", "lines", "shifts", "production_events"} <= tables
+    assert {"tags", "readings", "lines", "shifts", "production_events", "routes"} <= tables
     conn.close()
 
 
@@ -60,6 +60,22 @@ def test_seed_mes_writes_lines_shifts_and_events(tmp_path):
     assert shift_count == len(LINES)  # one open shift per line
     assert event_count == events_written
     assert event_count > 0
+
+
+def test_seed_routes_writes_routes_and_the_divergent_tag(tmp_path):
+    path = tmp_path / "telemetry.db"
+    seed(path, hours=1, interval_s=60, end_ts=3600, seed_value=7)
+    routes_written = seed_routes(path)
+
+    conn = init_db(path)
+    route_count = conn.execute("SELECT COUNT(*) FROM routes").fetchone()[0]
+    aux_tag = conn.execute(
+        "SELECT kind FROM tags WHERE node_id = 'west.flow_rate_b'"
+    ).fetchone()
+    conn.close()
+
+    assert route_count == routes_written == len(generate_routes())
+    assert aux_tag == ("flow_rate_aux",)
 
 
 def test_discover_mes_returns_one_oee_pseudo_tag_per_line(tmp_path):

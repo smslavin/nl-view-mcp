@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import BarWidget from "./BarWidget.vue";
+import FlowWidget from "./FlowWidget.vue";
 import LineWidget from "./LineWidget.vue";
 import StatWidget from "./StatWidget.vue";
+import TableWidget from "./TableWidget.vue";
 import type { BoardWidget } from "../types";
 
 const props = defineProps<{ widget: BoardWidget }>();
@@ -20,6 +22,10 @@ const component = computed(() => {
       return LineWidget;
     case "bar":
       return BarWidget;
+    case "table":
+      return TableWidget;
+    case "flow":
+      return FlowWidget;
     default:
       return StatWidget;
   }

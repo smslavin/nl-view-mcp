@@ -1,5 +1,13 @@
+from generator import DIVERGENT_ZONE
 from intent import Intent
-from widgets import build_bar_spec, build_line_spec, build_stat_spec, build_widget_spec
+from widgets import (
+    build_bar_spec,
+    build_flow_spec,
+    build_line_spec,
+    build_stat_spec,
+    build_table_spec,
+    build_widget_spec,
+)
 
 
 def test_build_line_spec_has_one_series_per_zone_with_points_in_window(
@@ -79,7 +87,66 @@ def test_build_widget_spec_dispatches_on_chart_type(seeded_conn, tags, freeze_no
     line_intent = Intent(kind="tank_level", chart_type="line", window_s=3600)
     bar_intent = Intent(kind="pump_run_state", chart_type="bar")
     stat_intent = Intent(kind="flow_rate", chart_type="stat")
+    table_intent = Intent(kind="shift_history", chart_type="table")
+    flow_intent = Intent(kind=None, chart_type="flow")
 
     assert build_widget_spec(line_intent, tags, seeded_conn)["chart_type"] == "line"
     assert build_widget_spec(bar_intent, tags, seeded_conn)["chart_type"] == "bar"
     assert build_widget_spec(stat_intent, tags, seeded_conn)["chart_type"] == "stat"
+    assert build_widget_spec(table_intent, tags, seeded_conn)["chart_type"] == "table"
+    assert build_widget_spec(flow_intent, tags, seeded_conn)["chart_type"] == "flow"
+
+
+# --- table ---------------------------------------------------------------------
+
+def test_build_table_spec_has_one_row_per_line_with_typed_columns(seeded_conn, tags):
+    intent = Intent(kind="shift_history", chart_type="table")
+    spec = build_table_spec(intent, tags, seeded_conn)
+
+    assert spec["widget_type"] == "table"
+    assert spec["chart_type"] == "table"
+    assert [c["key"] for c in spec["columns"]] == ["line", "started", "ended", "id"]
+    assert next(c for c in spec["columns"] if c["key"] == "id")["kind"] == "code"
+    assert len(spec["rows"]) == 3  # one open shift per line, per seed_mes
+    for row in spec["rows"]:
+        assert row["ended"] == "in progress"  # seed_mes only writes open shifts
+        assert set(row.keys()) == {"line", "started", "ended", "id"}
+
+
+# --- flow ---------------------------------------------------------------------
+
+def test_build_flow_spec_uniform_zone_is_a_straight_three_node_chain(seeded_conn, tags):
+    intent = Intent(kind=None, chart_type="flow", zones=["north"])
+    spec = build_flow_spec(intent, tags, seeded_conn)
+
+    assert spec["widget_type"] == "flow"
+    assert spec["chart_type"] == "flow"
+    node_ids = {n["id"] for n in spec["nodes"]}
+    assert node_ids == {"north.tank_level", "north.pump_run_state", "north.flow_rate"}
+    edges = {(e["from"], e["to"]) for e in spec["edges"]}
+    assert edges == {
+        ("north.tank_level", "north.pump_run_state"),
+        ("north.pump_run_state", "north.flow_rate"),
+    }
+    # Node labels resolve from the tag catalog, not the raw node id.
+    labels = {n["id"]: n["label"] for n in spec["nodes"]}
+    assert labels["north.tank_level"] == "North Tank Level"
+
+
+def test_build_flow_spec_divergent_zone_pump_has_two_outgoing_edges(seeded_conn, tags):
+    intent = Intent(kind=None, chart_type="flow", zones=[DIVERGENT_ZONE])
+    spec = build_flow_spec(intent, tags, seeded_conn)
+
+    from_pump = {e["to"] for e in spec["edges"] if e["from"] == f"{DIVERGENT_ZONE}.pump_run_state"}
+    assert from_pump == {f"{DIVERGENT_ZONE}.flow_rate", f"{DIVERGENT_ZONE}.flow_rate_b"}
+    node_ids = {n["id"] for n in spec["nodes"]}
+    assert f"{DIVERGENT_ZONE}.flow_rate_b" in node_ids
+
+
+def test_build_flow_spec_with_no_zone_named_covers_every_zone(seeded_conn, tags):
+    intent = Intent(kind=None, chart_type="flow", zones=None)
+    spec = build_flow_spec(intent, tags, seeded_conn)
+
+    zones_covered = {n["id"].split(".")[0] for n in spec["nodes"]}
+    assert zones_covered == {"north", "south", "east", "west"}
+    assert spec["title"] == "Flow Topology"  # no zone named -> no zone suffix

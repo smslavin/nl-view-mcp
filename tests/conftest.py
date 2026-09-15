@@ -3,7 +3,7 @@ import time
 import pytest
 
 from db import discover_mes, discover_schema, init_db
-from generator import seed, seed_mes
+from generator import seed, seed_mes, seed_routes
 
 SEED_END_TS = 10_000_000  # arbitrary fixed "now" so window queries are deterministic
 
@@ -13,6 +13,7 @@ def seeded_conn(tmp_path):
     path = tmp_path / "telemetry.db"
     seed(path, hours=2, interval_s=60, end_ts=SEED_END_TS, seed_value=42)
     seed_mes(path, end_ts=SEED_END_TS, seed_value=42)
+    seed_routes(path)
     conn = init_db(path)
     yield conn
     conn.close()

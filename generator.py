@@ -258,6 +258,70 @@ def seed_mes(
     return events_written
 
 
+# Every zone routes tank -> pump -> flow meter as a straight chain except
+# this one, whose pump also feeds a second flow meter -- proof that the flow
+# widget renders real divergence, not just a uniform path. Same lesson as
+# mes-mcp's recall UI: a uniform path reads fine as a sentence; a genuine
+# branch needs a diagram, and this zone exists so there's one to prove it on.
+DIVERGENT_ZONE = "west"
+
+
+def generate_divergent_tag(zone: str = DIVERGENT_ZONE) -> dict:
+    """The one extra tag the divergent zone's second route needs. Deliberately
+    a kind ('flow_rate_aux') that intent.py never matches for line/bar/stat --
+    this tag exists only to be a flow-widget node, not a queryable series."""
+    return {
+        "node_id": f"{zone}.flow_rate_b",
+        "name": f"{zone.title()} Auxiliary Flow Rate",
+        "kind": "flow_rate_aux",
+        "unit": "gpm",
+        "zone": zone,
+    }
+
+
+def generate_routes(
+    zones: list[str] = ZONES, divergent_zone: str = DIVERGENT_ZONE
+) -> list[dict]:
+    """(zone, from_tag, to_tag) rows: tank -> pump -> flow meter for every
+    zone, plus pump -> the auxiliary flow meter for `divergent_zone` only."""
+    routes = []
+    for zone in zones:
+        routes.append({"zone": zone, "from_tag": f"{zone}.tank_level", "to_tag": f"{zone}.pump_run_state"})
+        routes.append({"zone": zone, "from_tag": f"{zone}.pump_run_state", "to_tag": f"{zone}.flow_rate"})
+        if zone == divergent_zone:
+            routes.append({
+                "zone": zone, "from_tag": f"{zone}.pump_run_state", "to_tag": f"{zone}.flow_rate_b",
+            })
+    return routes
+
+
+def seed_routes(db_path: str | Path) -> int:
+    """Create the DB (if needed), add the divergent zone's auxiliary tag, and
+    write the zone piping routes. Kept separate from seed()/seed_mes() the
+    same way those are separate from each other -- this is flow-topology demo
+    data, not telemetry or OEE, and keeping it isolated means seed()'s own
+    tag count stays exactly "one per zone per kind" as its docstring promises.
+    No readings are backfilled for the auxiliary tag; the flow widget only
+    needs topology and tag names, not a value series. Returns routes written.
+    """
+    conn = init_db(db_path)
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO tags (node_id, name, kind, unit, zone) "
+            "VALUES (:node_id, :name, :kind, :unit, :zone)",
+            generate_divergent_tag(),
+        )
+        routes = generate_routes()
+        conn.executemany(
+            "INSERT INTO routes (zone, from_tag, to_tag) VALUES (:zone, :from_tag, :to_tag)",
+            routes,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return len(routes)
+
+
 if __name__ == "__main__":
     load_dotenv()
     path = os.environ.get("SQLITE_PATH", "./data/telemetry.db")
@@ -265,3 +329,5 @@ if __name__ == "__main__":
     print(f"Seeded {n} readings across {len(generate_tags())} tags into {path}")
     n_events = seed_mes(path)
     print(f"Seeded {n_events} production events across {len(LINES)} lines into {path}")
+    n_routes = seed_routes(path)
+    print(f"Seeded {n_routes} flow routes into {path}")

@@ -14,7 +14,7 @@ describe("StatWidget", () => {
   it("renders an em dash when the value is null", () => {
     const spec = {
       ...statSpecFixture,
-      series: [{ ...statSpecFixture.series[0], points: [{ x: "now", y: null }] }],
+      series: [{ ...statSpecFixture.series![0], points: [{ x: "now", y: null }] }],
     };
     const wrapper = mount(StatWidget, { props: { spec } });
 

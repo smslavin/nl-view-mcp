@@ -16,9 +16,17 @@ KIND_SYNONYMS = {
     "pump_run_state": ["pump run hours", "pump run state", "pump run", "pump"],
     "flow_rate": ["flow rate", "flow"],
     "oee": ["oee", "overall equipment effectiveness"],
+    "shift_history": ["shift history", "shifts"],
 }
 
 _GROUPING_PHRASES = ("by zone", "by line")
+# "list"/"table" plus a matched kind means table. shift_history skips
+# straight to table regardless of these words -- there's no sensible
+# bar/line/stat rendering of a shift record.
+_TABLE_WORDS = ("list", "table")
+# Independent of `kind`: a flow query is about a zone's topology, not one
+# tag's values.
+_FLOW_PHRASES = ("flow diagram", "flow path", "flow topology", "routing", "topology", "flows to")
 
 _TIME_UNIT_SECONDS = {"minute": 60, "minutes": 60, "hour": 3600, "hours": 3600}
 _TIME_WINDOW_RE = re.compile(r"last\s+(\d+)?\s*(hour|hours|minute|minutes)\b")
@@ -61,9 +69,16 @@ def understand_instruction(instruction: str, tags: list[dict]) -> Intent:
     window_s = _parse_time_window(text)
     group_by = any(phrase in text for phrase in _GROUPING_PHRASES)
     wants_latest = any(word in text for word in _LATEST_WORDS)
+    wants_table = any(word in text for word in _TABLE_WORDS)
+    wants_flow = any(phrase in text for phrase in _FLOW_PHRASES)
 
     chart_type = None
-    if kind is not None:
+    if wants_flow:
+        # Topology, not a tag's values -- resolves without a `kind` at all.
+        chart_type = "flow"
+    elif kind == "shift_history" or (kind is not None and wants_table):
+        chart_type = "table"
+    elif kind is not None:
         if group_by:
             chart_type = "bar"
         elif window_s is not None:
