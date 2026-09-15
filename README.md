@@ -33,7 +33,7 @@ Scaffolding. See `bd ready` for the current build backlog.
 
 ## Build order
 
-1. [ ] SQLite schema + synthetic telemetry data generator
+1. [x] SQLite schema + synthetic telemetry data generator
 2. [ ] `build_view` tool: heuristics + query execution + `ui://` resource emission
 3. [ ] LLM fallback for heuristic-ambiguous instructions
 4. [ ] Vue + Chart.js renderer, wired to the live server
@@ -42,7 +42,13 @@ Scaffolding. See `bd ready` for the current build backlog.
 
 ## Running it
 
-Not runnable yet — comes online at step 2.
+```bash
+uv sync
+uv run python generator.py   # seeds ./data/telemetry.db with 6h of synthetic readings
+uv run pytest -q
+```
+
+The MCP server itself (`build_view`) is not runnable yet — comes online at step 2.
 
 ## Findings
 
