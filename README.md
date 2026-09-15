@@ -34,7 +34,7 @@ Scaffolding. See `bd ready` for the current build backlog.
 ## Build order
 
 1. [x] SQLite schema + synthetic telemetry data generator
-2. [ ] `build_view` tool: heuristics + query execution + `ui://` resource emission
+2. [x] `build_view` tool: heuristics + query execution + `ui://` resource emission
 3. [ ] LLM fallback for heuristic-ambiguous instructions
 4. [ ] Vue + Chart.js renderer, wired to the live server
 5. [ ] Stretch: synthetic MES tables + an OEE-by-line instruction
@@ -48,7 +48,25 @@ uv run python generator.py   # seeds ./data/telemetry.db with 6h of synthetic re
 uv run pytest -q
 ```
 
-The MCP server itself (`build_view`) is not runnable yet — comes online at step 2.
+uv run python server.py    # serves build_view over SSE on NL_VIEW_MCP_PORT (default 8010)
+```
+
+`build_view` resolves these purely via heuristic, no LLM call:
+
+- "show me tank level trends for the last hour" -> line
+- "compare pump run hours by zone" -> bar
+- "what's the current flow rate" -> stat
+
+An instruction with no kind keyword (e.g. "how's the west side looking") falls
+through to the Claude Haiku classifier -- set `ANTHROPIC_API_KEY` for that path.
+
+No renderer client yet (step 4) -- exercise it directly:
+
+```python
+import json, server
+result = json.loads(server.build_view("what's the current flow rate"))
+print(json.loads(server.get_view(result["uri"].removeprefix("ui://view/"))))
+```
 
 ## Findings
 

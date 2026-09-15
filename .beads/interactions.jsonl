@@ -1,0 +1,1 @@
+{"id":"int-17e8e04489440b65407e6894a5391ed3","kind":"field_change","created_at":"2026-09-15T15:28:58.519064Z","actor":"seanslavin","issue_id":"nl-view-mcp-9e2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Schema + generator implemented, tested, PR #1 open for review"}}
