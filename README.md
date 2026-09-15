@@ -35,8 +35,8 @@ Scaffolding. See `bd ready` for the current build backlog.
 
 1. [x] SQLite schema + synthetic telemetry data generator
 2. [x] `build_view` tool: heuristics + query execution + `ui://` resource emission
-3. [ ] LLM fallback for heuristic-ambiguous instructions
-4. [ ] Vue + Chart.js renderer, wired to the live server
+3. [x] LLM fallback for heuristic-ambiguous instructions
+4. [x] Vue + Chart.js renderer, wired to the live server
 5. [ ] Stretch: synthetic MES tables + an OEE-by-line instruction
 6. [ ] Findings write-up (this README)
 
@@ -46,9 +46,18 @@ Scaffolding. See `bd ready` for the current build backlog.
 uv sync
 uv run python generator.py   # seeds ./data/telemetry.db with 6h of synthetic readings
 uv run pytest -q
+
+uv run python server.py      # serves build_view over Streamable HTTP on :8010 (CORS open to :5173)
 ```
 
-uv run python server.py    # serves build_view over SSE on NL_VIEW_MCP_PORT (default 8010)
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev                  # http://localhost:5173
+npx vue-tsc --build
+npx vitest run
 ```
 
 `build_view` resolves these purely via heuristic, no LLM call:
@@ -60,16 +69,12 @@ uv run python server.py    # serves build_view over SSE on NL_VIEW_MCP_PORT (def
 An instruction with no kind keyword (e.g. "how's the west side looking") falls
 through to the Claude Haiku classifier -- set `ANTHROPIC_API_KEY` for that path.
 
-No renderer client yet (step 4) -- exercise it directly:
-
-```python
-import json, server
-result = json.loads(server.build_view("what's the current flow rate"))
-print(json.loads(server.get_view(result["uri"].removeprefix("ui://view/"))))
-```
-
 ## Findings
 
-(To be filled in after the prototype is built: what the chart-type heuristics
-got wrong, and whether `ui://` felt like the right layer vs. just returning
-structured data and letting the client decide.)
+Full write-up comes after the MES stretch goal. Noted so far:
+
+- **The widget spec has no semantic type for a point's `x` value.** Line
+  charts always use Unix-seconds timestamps and bar charts always use
+  categorical strings, but nothing in the schema says so -- the renderer
+  guesses based on `chart_type` (see `chartData.ts`). A real version of this
+  schema needs an explicit axis type, not an inferred one.

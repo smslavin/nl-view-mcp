@@ -34,6 +34,7 @@ load_dotenv()
 
 PORT = int(os.environ.get("NL_VIEW_MCP_PORT", 8010))
 SQLITE_PATH = os.environ.get("SQLITE_PATH", "./data/telemetry.db")
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
 
 mcp = MCPServer("nl-view-mcp")
 
@@ -83,4 +84,19 @@ def get_view(slug: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port=PORT)
+    import uvicorn
+    from starlette.middleware.cors import CORSMiddleware
+
+    # mcp.run(transport="streamable-http", ...) has no CORS knob, and the
+    # browser-based Vue client needs one -- build the ASGI app ourselves and
+    # wrap it. Streamable HTTP (not SSE, which the MCP TS SDK now deprecates)
+    # so the client can use StreamableHTTPClientTransport.
+    app = mcp.streamable_http_app()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[FRONTEND_ORIGIN],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["Mcp-Session-Id"],
+    )
+    uvicorn.run(app, host="127.0.0.1", port=PORT)
