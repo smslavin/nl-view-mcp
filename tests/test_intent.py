@@ -55,3 +55,19 @@ def test_parses_explicit_minute_window():
     intent = understand_instruction("flow rate for the last 30 minutes", TAGS)
     assert intent.chart_type == "line"
     assert intent.window_s == 1800
+
+
+def test_oee_by_line_resolves_to_bar():
+    oee_tags = TAGS + [
+        {
+            "node_id": "oee.line-1",
+            "name": "Line 1 OEE",
+            "kind": "oee",
+            "unit": "%",
+            "zone": "line-1",
+        }
+    ]
+    intent = understand_instruction("show OEE by line for the current shift", oee_tags)
+
+    assert intent.kind == "oee"
+    assert intent.chart_type == "bar"

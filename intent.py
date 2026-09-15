@@ -15,7 +15,10 @@ KIND_SYNONYMS = {
     "tank_level": ["tank level", "tank levels"],
     "pump_run_state": ["pump run hours", "pump run state", "pump run", "pump"],
     "flow_rate": ["flow rate", "flow"],
+    "oee": ["oee", "overall equipment effectiveness"],
 }
+
+_GROUPING_PHRASES = ("by zone", "by line")
 
 _TIME_UNIT_SECONDS = {"minute": 60, "minutes": 60, "hour": 3600, "hours": 3600}
 _TIME_WINDOW_RE = re.compile(r"last\s+(\d+)?\s*(hour|hours|minute|minutes)\b")
@@ -56,12 +59,12 @@ def understand_instruction(instruction: str, tags: list[dict]) -> Intent:
     kind = _match_kind(text)
     zones = _match_zones(text, tags)
     window_s = _parse_time_window(text)
-    group_by_zone = "by zone" in text
+    group_by = any(phrase in text for phrase in _GROUPING_PHRASES)
     wants_latest = any(word in text for word in _LATEST_WORDS)
 
     chart_type = None
     if kind is not None:
-        if group_by_zone:
+        if group_by:
             chart_type = "bar"
         elif window_s is not None:
             chart_type = "line"
